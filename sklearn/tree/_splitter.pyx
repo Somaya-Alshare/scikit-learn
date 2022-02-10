@@ -18,6 +18,8 @@ from libc.stdlib cimport qsort
 from libc.string cimport memcpy
 from libc.string cimport memset
 
+import math
+
 import numpy as np
 cimport numpy as np
 np.import_array()
@@ -597,7 +599,7 @@ cdef class SomayaSplitter(BaseDenseSplitter):
         cdef double min_weight_leaf = self.min_weight_leaf
         cdef UINT32_t* random_state = &self.rand_r_state
 
-        cdef SplitRecord best, current,currentLower
+        cdef SplitRecord best, current
         cdef double current_proxy_improvement = -INFINITY
         cdef double best_proxy_improvement = -INFINITY
 
@@ -619,16 +621,17 @@ cdef class SomayaSplitter(BaseDenseSplitter):
         cdef SIZE_t n_total_constants = n_known_constants
         cdef DTYPE_t current_feature_value
         cdef SIZE_t partition_end
-        cdef SIZE_t mid_point
-        cdef SIZE_t best_threshold_seeker_limit
+        cdef SIZE_t End_of_section     #somaya
+        cdef SIZE_t best_threshold_seeker_limit              #somaya  --remove
         cdef DTYPE_t min_feature_value
         cdef DTYPE_t max_feature_value
-        cdef DTYPE_t mid_feature_value
-        cdef DTYPE_t upper_THRESHOLD
-        cdef DTYPE_t lower_THRESHOLD
-        cdef SIZE_t temp_start
-        cdef SIZE_t temp_end
-        cdef SIZE_t section_selector= 0
+        cdef SIZE_t section_size                        #somaya
+        cdef DTYPE_t section_threshold                          #somaya
+        cdef DTYPE_t lower_THRESHOLD                          #somaya  --remove
+        cdef SIZE_t start_of_section                                #somaya
+        cdef SIZE_t temp_end                                  #somaya --remove
+        cdef SIZE_t section_selector= 0                       #somaya  --remove
+        cdef SIZE_t number_of_sections=8
 
         _init_split(&best, end)
 
@@ -675,7 +678,6 @@ cdef class SomayaSplitter(BaseDenseSplitter):
                 f_j += n_found_constants
                 # f_j in the interval [n_total_constants, f_i[
                 current.feature = features[f_j]
-                currentLower.feature = features[f_j]
 
                 # Sort samples along that feature; by
                 # copying the values into an array and
@@ -696,128 +698,80 @@ cdef class SomayaSplitter(BaseDenseSplitter):
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
 
-                    temp_start=start
-                    temp_end=end
+                    start_of_section=start
+                    section_size =(end-start)/number_of_sections
+                    # Evaluate all splits
+                    self.criterion.reset()
 
-                    #while ((temp_end-temp_start)>= (0.2*(end - start))):
-                    for i in range(1):
-                        section_selector= 0
-                        best_threshold_seeker_limit= int(0.01 * (temp_end - temp_start))
-                        #calculate midpoint
-                        min_feature_value = Xf[temp_start]
-                        max_feature_value = Xf[temp_end - 1]
-                        mid_point=(temp_start+temp_end)/2
-                        mid_feature_value=Xf[mid_point]
+                    for x in range(number_of_sections):
+                      min_feature_value = Xf[start_of_section]
 
-                        # Draw a random threshold from upper part
-                        upper_THRESHOLD=rand_uniform(min_feature_value,
-                                                         mid_feature_value,
-                                                         random_state)
+                      if x ==(number_of_sections-1):
+                        End_of_section = start_of_section + section_size+ ((start-end)%number_of_sections)
+                        if End_of_section > end:
+                          End_of_section=end
+                      else:
+                        End_of_section = start_of_section + section_size
+                        if End_of_section>end:
+                          End_of_section=end
 
-                        lower_THRESHOLD=rand_uniform(mid_feature_value,
-                                                         max_feature_value,
-                                                         random_state)
+                      max_feature_value=Xf[End_of_section-1]
 
-                        #---------------------------------------evaluate upper part threshold
-                        current.threshold = upper_THRESHOLD
+                      # Draw a random threshold from a section
+                      section_threshold=rand_uniform(min_feature_value,
+                                                       max_feature_value,
+                                                       random_state)
 
-                        if current.threshold == mid_feature_value:
-                            current.threshold = min_feature_value
+                      #evaluate section threshold
+                      current.threshold = section_threshold
 
-                        # find index of upper threshold
-                        p, partition_end = temp_start, mid_point
-                        while p < partition_end:
-                            if Xf[p] <= current.threshold:
-                                p += 1
-                            else:
-                                partition_end -= 1
+                      if current.threshold == max_feature_value:
+                          current.threshold = min_feature_value
 
-                                #Xf[p], Xf[partition_end] = Xf[partition_end], Xf[p]
-                                #samples[p], samples[partition_end] = samples[partition_end], samples[p]
+                      # find index of section threshold
+                      p, partition_end = start_of_section, End_of_section
+                      while p < partition_end:
+                          if Xf[p] <= current.threshold:
+                              p += 1
+                          else:
+                              partition_end -= 1
 
-                        current.pos = partition_end
+                      current.pos = partition_end
 
-                        # Reject if min_samples_leaf is not guaranteed
-                        if (((current.pos - temp_start) < min_samples_leaf) or
-                                ((mid_point - current.pos) < min_samples_leaf)):
-                            continue
+                      # Reject if min_samples_leaf is not guaranteed
+                      if (((current.pos - start) < min_samples_leaf) or
+                              ((end - current.pos) < min_samples_leaf)):
+                          continue
 
-                        # Evaluate split
-                        self.criterion.reset()
-                        self.criterion.update(current.pos)
+                      self.criterion.update(current.pos)
 
-                        # Reject if min_weight_leaf is not satisfied
-                        if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                                (self.criterion.weighted_n_right < min_weight_leaf)):
-                            continue
+                      # Reject if min_weight_leaf is not satisfied
+                      if ((self.criterion.weighted_n_left < min_weight_leaf) or
+                              (self.criterion.weighted_n_right < min_weight_leaf)):
+                          continue
 
-                        current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+                      current_proxy_improvement = self.criterion.proxy_impurity_improvement()
 
-                        if current_proxy_improvement > best_proxy_improvement:
-                            best_proxy_improvement = current_proxy_improvement
-                            best = current  # copy
-                            section_selector=section_selector+1
+                      if current_proxy_improvement > best_proxy_improvement:
+                          best_proxy_improvement = current_proxy_improvement
+                          best = current  # copy
 
-                        # -------------------------------------evaluate lower part threshold
-                        currentLower.threshold = lower_THRESHOLD
+                      start_of_section=End_of_section
 
-                        if currentLower.threshold == max_feature_value:
-                            currentLower.threshold = mid_feature_value
-
-                        # find index of lower threshold
-                        p, partition_end = mid_point, temp_end
-                        while p < partition_end:
-                            if Xf[p] <= current.threshold:
-                                p += 1
-                            else:
-                                partition_end -= 1
-
-                                #Xf[p], Xf[partition_end] = Xf[partition_end], Xf[p]
-                                #samples[p], samples[partition_end] = samples[partition_end], samples[p]
-
-                        currentLower.pos = partition_end
-
-                        # Reject if min_samples_leaf is not guaranteed
-                        if (((currentLower.pos - mid_point) < min_samples_leaf) or
-                                ((temp_end - currentLower.pos) < min_samples_leaf)):
-                            continue
-
-                        # Evaluate split
-                        self.criterion.reset()
-                        self.criterion.update(currentLower.pos)
-
-                        # Reject if min_weight_leaf is not satisfied
-                        if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                                (self.criterion.weighted_n_right < min_weight_leaf)):
-                            continue
-
-                        current_proxy_improvement = self.criterion.proxy_impurity_improvement()
-
-                        if current_proxy_improvement > best_proxy_improvement:
-                            best_proxy_improvement = current_proxy_improvement
-                            best = currentLower  # copy
-                            section_selector=section_selector+1
-
-                        if section_selector==1:
-                            temp_end=mid_point
-                        elif section_selector==2:
-                            temp_start=mid_point
-                        #else:
-                            #best_threshold_seeker_limit=best_threshold_seeker_limit - 1
-                            #temp_start=mid_point
 
         # Reorganize into samples[start:best.pos] + samples[best.pos:end]
         if best.pos < end:
-            if current.feature != best.feature:
-                p, partition_end = start, end
+            partition_end = end
+            p = start
 
-                while p < partition_end:
-                    if self.X[samples[p], best.feature] <= best.threshold:
-                        p += 1
-                    else:
-                        partition_end -= 1
+            while p < partition_end:
+                if self.X[samples[p], best.feature] <= best.threshold:
+                    p += 1
 
-                        samples[p], samples[partition_end] = samples[partition_end], samples[p]
+                else:
+                    partition_end -= 1
+
+                    samples[p], samples[partition_end] = samples[partition_end], samples[p]
 
             self.criterion.reset()
             self.criterion.update(best.pos)
