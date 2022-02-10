@@ -55,8 +55,8 @@ cdef class Splitter:
     Splitters are called by tree builders to find the best splits on both
     sparse and dense data, one split at a time.
     """
-
-    def __cinit__(self, Criterion criterion, SIZE_t max_features,
+                                                                                        #somaya
+    def __cinit__(self, Criterion criterion, SIZE_t max_features,SIZE_t number_of_sections,
                   SIZE_t min_samples_leaf, double min_weight_leaf,
                   object random_state):
         """
@@ -93,6 +93,7 @@ cdef class Splitter:
         self.sample_weight = NULL
 
         self.max_features = max_features
+        self.number_of_sections=number_of_sections                    #somaya
         self.min_samples_leaf = min_samples_leaf
         self.min_weight_leaf = min_weight_leaf
         self.random_state = random_state
@@ -568,10 +569,11 @@ cdef void heapsort(DTYPE_t* Xf, SIZE_t* samples, SIZE_t n) nogil:
 
 
 cdef class SomayaSplitter(BaseDenseSplitter):
-    """Splitter for finding the best split."""
+    """Splitter for finding the best split."""                    #somaya 4 lines below
     def __reduce__(self):
         return (SomayaSplitter, (self.criterion,
                                self.max_features,
+                               self.number_of_sections,
                                self.min_samples_leaf,
                                self.min_weight_leaf,
                                self.random_state), self.__getstate__())
@@ -595,6 +597,7 @@ cdef class SomayaSplitter(BaseDenseSplitter):
 
         cdef DTYPE_t* Xf = self.feature_values
         cdef SIZE_t max_features = self.max_features
+        cdef SIZE_t number_of_sections = self.number_of_sections        #somaya
         cdef SIZE_t min_samples_leaf = self.min_samples_leaf
         cdef double min_weight_leaf = self.min_weight_leaf
         cdef UINT32_t* random_state = &self.rand_r_state
@@ -631,7 +634,7 @@ cdef class SomayaSplitter(BaseDenseSplitter):
         cdef SIZE_t start_of_section                                #somaya
         cdef SIZE_t temp_end                                  #somaya --remove
         cdef SIZE_t section_selector= 0                       #somaya  --remove
-        cdef SIZE_t number_of_sections=8
+        #cdef SIZE_t number_of_sections=8
 
         _init_split(&best, end)
 

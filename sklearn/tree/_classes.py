@@ -110,6 +110,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         min_samples_leaf,
         min_weight_fraction_leaf,
         max_features,
+        number_of_sections,  # somaya
         max_leaf_nodes,
         random_state,
         min_impurity_decrease,
@@ -123,6 +124,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         self.min_samples_leaf = min_samples_leaf
         self.min_weight_fraction_leaf = min_weight_fraction_leaf
         self.max_features = max_features
+        self.number_of_sections = number_of_sections  # somaya
         self.max_leaf_nodes = max_leaf_nodes
         self.random_state = random_state
         self.min_impurity_decrease = min_impurity_decrease
@@ -403,12 +405,13 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             criterion = copy.deepcopy(criterion)
 
         SPLITTERS = SPARSE_SPLITTERS if issparse(X) else DENSE_SPLITTERS
-
+        # somaya 6 lines below
         splitter = self.splitter
         if not isinstance(self.splitter, Splitter):
             splitter = SPLITTERS[self.splitter](
                 criterion,
                 self.max_features_,
+                self.number_of_sections,
                 min_samples_leaf,
                 min_weight_leaf,
                 random_state,
@@ -1272,6 +1275,7 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
         max_features=None,
+        number_of_sections=1,  # somaya
         random_state=None,
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
@@ -1285,6 +1289,7 @@ class DecisionTreeRegressor(RegressorMixin, BaseDecisionTree):
             min_samples_leaf=min_samples_leaf,
             min_weight_fraction_leaf=min_weight_fraction_leaf,
             max_features=max_features,
+            number_of_sections=number_of_sections,  # somaya
             max_leaf_nodes=max_leaf_nodes,
             random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
@@ -2466,6 +2471,7 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
         max_features=None,
+        number_of_sections=1,  # somaya
         random_state=None,
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
@@ -2479,6 +2485,7 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
             min_samples_leaf=min_samples_leaf,
             min_weight_fraction_leaf=min_weight_fraction_leaf,
             max_features=max_features,
+            number_of_sections=number_of_sections,  # somaya
             max_leaf_nodes=max_leaf_nodes,
             random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,

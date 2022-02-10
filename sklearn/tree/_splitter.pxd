@@ -40,6 +40,7 @@ cdef class Splitter:
     # Internal structures
     cdef public Criterion criterion      # Impurity criterion
     cdef public SIZE_t max_features      # Number of features to test
+    cdef public SIZE_t number_of_sections # Number of sections to find ptimal threshold
     cdef public SIZE_t min_samples_leaf  # Min samples in a leaf
     cdef public double min_weight_leaf   # Minimum weight in a leaf
 
