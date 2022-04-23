@@ -10,6 +10,7 @@
 #          Jacob Schreiber <jmschreiber91@gmail.com>
 #
 # License: BSD 3 clause
+from libc.stdio cimport printf
 
 from ._criterion cimport Criterion
 
@@ -17,8 +18,6 @@ from libc.stdlib cimport free
 from libc.stdlib cimport qsort
 from libc.string cimport memcpy
 from libc.string cimport memset
-
-import math
 
 import numpy as np
 cimport numpy as np
@@ -376,6 +375,7 @@ cdef class BestSplitter(BaseDenseSplitter):
                     # Evaluate all splits
                     self.criterion.reset()
                     p = start
+                    #printf('random forest here***\n')                          #somaya
 
                     while p < end:
                         while (p + 1 < end and
@@ -390,6 +390,10 @@ cdef class BestSplitter(BaseDenseSplitter):
 
                         if p < end:
                             current.pos = p
+
+                            #printf('Feature number = %d \n',features[f_j])     #somaya
+                            #printf('start = %d \n',start)                      #somaya
+                            #printf('end = %d \n',end)                          #somaya
 
                             # Reject if min_samples_leaf is not guaranteed
                             if (((current.pos - start) < min_samples_leaf) or
@@ -569,11 +573,10 @@ cdef void heapsort(DTYPE_t* Xf, SIZE_t* samples, SIZE_t n) nogil:
 
 
 cdef class SomayaSplitter(BaseDenseSplitter):
-    """Splitter for finding the best split."""                    #somaya 4 lines below
+    """Splitter for finding the best split."""                    #somaya 4 lines below  /////////////self.number_of_sections,
     def __reduce__(self):
         return (SomayaSplitter, (self.criterion,
                                self.max_features,
-                               self.number_of_sections,
                                self.min_samples_leaf,
                                self.min_weight_leaf,
                                self.random_state), self.__getstate__())
@@ -597,7 +600,7 @@ cdef class SomayaSplitter(BaseDenseSplitter):
 
         cdef DTYPE_t* Xf = self.feature_values
         cdef SIZE_t max_features = self.max_features
-        cdef SIZE_t number_of_sections = self.number_of_sections        #somaya
+        cdef SIZE_t number_of_sections = self.number_of_sections                 #somaya
         cdef SIZE_t min_samples_leaf = self.min_samples_leaf
         cdef double min_weight_leaf = self.min_weight_leaf
         cdef UINT32_t* random_state = &self.rand_r_state
@@ -625,16 +628,12 @@ cdef class SomayaSplitter(BaseDenseSplitter):
         cdef DTYPE_t current_feature_value
         cdef SIZE_t partition_end
         cdef SIZE_t End_of_section     #somaya
-        cdef SIZE_t best_threshold_seeker_limit              #somaya  --remove
         cdef DTYPE_t min_feature_value
         cdef DTYPE_t max_feature_value
-        cdef SIZE_t section_size                        #somaya
-        cdef DTYPE_t section_threshold                          #somaya
-        cdef DTYPE_t lower_THRESHOLD                          #somaya  --remove
-        cdef SIZE_t start_of_section                                #somaya
-        cdef SIZE_t temp_end                                  #somaya --remove
-        cdef SIZE_t section_selector= 0                       #somaya  --remove
-        #cdef SIZE_t number_of_sections=8
+        cdef SIZE_t section_size                                                #somaya
+        cdef DTYPE_t section_threshold                                          #somaya
+        cdef SIZE_t start_of_section                                            #somaya
+
 
         _init_split(&best, end)
 
@@ -700,67 +699,74 @@ cdef class SomayaSplitter(BaseDenseSplitter):
                 else:
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
-
+                                    #**********************************************************************Somaya start here >>>>>
                     start_of_section=start
                     section_size =(end-start)/number_of_sections
+                    if section_size ==0:
+                      section_size=1
+                    #printf('Feature number = %d \n',features[f_j])
+                    #printf('start = %d for feature %d\n',start,features[f_j])
+                    #printf('end = %d for feature %d\n',end,features[f_j])
+                    #printf('section size = %d for feature %d\n',section_size,features[f_j])
+
                     # Evaluate all splits
                     self.criterion.reset()
 
                     for x in range(number_of_sections):
-                      min_feature_value = Xf[start_of_section]
 
-                      if x ==(number_of_sections-1):
-                        End_of_section = start_of_section + section_size+ ((start-end)%number_of_sections)
-                        if End_of_section > end:
-                          End_of_section=end
-                      else:
+                        #printf('start_of_section = %d  for feature %d\n',start_of_section,features[f_j])
+
+                        min_feature_value = Xf[start_of_section]
+
                         End_of_section = start_of_section + section_size
                         if End_of_section>end:
                           End_of_section=end
+                        #printf('End_of_section = %d for feature %d\n',End_of_section,features[f_j])
+                        max_feature_value=Xf[End_of_section-1]
 
-                      max_feature_value=Xf[End_of_section-1]
+                        # Draw a random threshold from a section
+                        section_threshold=rand_uniform(min_feature_value,
+                                                         max_feature_value,
+                                                         random_state)
 
-                      # Draw a random threshold from a section
-                      section_threshold=rand_uniform(min_feature_value,
-                                                       max_feature_value,
-                                                       random_state)
+                        #evaluate section threshold
+                        #current.threshold = section_threshold     #*******************************here is thr error
 
-                      #evaluate section threshold
-                      current.threshold = section_threshold
+                        #if current.threshold == max_feature_value:
+                            #current.threshold = min_feature_value
 
-                      if current.threshold == max_feature_value:
-                          current.threshold = min_feature_value
+                        # find index of section threshold
+                        p, partition_end = start_of_section, End_of_section
+                        while p < partition_end:
+                            if Xf[p] <= section_threshold:
+                                p += 1
+                            else:
+                                partition_end -= 1
 
-                      # find index of section threshold
-                      p, partition_end = start_of_section, End_of_section
-                      while p < partition_end:
-                          if Xf[p] <= current.threshold:
-                              p += 1
-                          else:
-                              partition_end -= 1
+                        current.pos = partition_end
 
-                      current.pos = partition_end
+                        # Reject if min_samples_leaf is not guaranteed
+                        if (((current.pos - start) < min_samples_leaf) or
+                                ((end - current.pos) < min_samples_leaf)):
+                            continue
 
-                      # Reject if min_samples_leaf is not guaranteed
-                      if (((current.pos - start) < min_samples_leaf) or
-                              ((end - current.pos) < min_samples_leaf)):
-                          continue
+                        self.criterion.update(current.pos)
 
-                      self.criterion.update(current.pos)
+                        # Reject if min_weight_leaf is not satisfied
+                        if ((self.criterion.weighted_n_left < min_weight_leaf) or
+                                (self.criterion.weighted_n_right < min_weight_leaf)):
+                            continue
 
-                      # Reject if min_weight_leaf is not satisfied
-                      if ((self.criterion.weighted_n_left < min_weight_leaf) or
-                              (self.criterion.weighted_n_right < min_weight_leaf)):
-                          continue
+                        current_proxy_improvement = self.criterion.proxy_impurity_improvement()
 
-                      current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+                        if current_proxy_improvement > best_proxy_improvement:
+                            best_proxy_improvement = current_proxy_improvement
+                            current.threshold = section_threshold
+                            best = current  # copy
 
-                      if current_proxy_improvement > best_proxy_improvement:
-                          best_proxy_improvement = current_proxy_improvement
-                          best = current  # copy
-
-                      start_of_section=End_of_section
-
+                        start_of_section=End_of_section
+                        if End_of_section==end:
+                          break
 
         # Reorganize into samples[start:best.pos] + samples[best.pos:end]
         if best.pos < end:

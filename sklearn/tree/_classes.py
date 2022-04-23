@@ -903,6 +903,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
         max_features=None,
+        number_of_sections=1,  # somaya
         random_state=None,
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
@@ -917,6 +918,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             min_samples_leaf=min_samples_leaf,
             min_weight_fraction_leaf=min_weight_fraction_leaf,
             max_features=max_features,
+            number_of_sections=number_of_sections,  # somaya
             max_leaf_nodes=max_leaf_nodes,
             class_weight=class_weight,
             random_state=random_state,
@@ -2099,6 +2101,7 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
         max_features=None,
+        number_of_sections=1,  # somaya
         random_state=None,
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
@@ -2113,6 +2116,7 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
             min_samples_leaf=min_samples_leaf,
             min_weight_fraction_leaf=min_weight_fraction_leaf,
             max_features=max_features,
+            number_of_sections=number_of_sections,  # somaya
             max_leaf_nodes=max_leaf_nodes,
             class_weight=class_weight,
             random_state=random_state,

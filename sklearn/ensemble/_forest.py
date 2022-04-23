@@ -2704,7 +2704,8 @@ class somayaTreesClassifier(ForestClassifier):
         min_samples_split=2,
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
-        max_features="auto",
+        max_features="sqrt",
+        number_of_sections=1,  # somaya
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
         bootstrap=True,
@@ -2727,6 +2728,7 @@ class somayaTreesClassifier(ForestClassifier):
                 "min_samples_leaf",
                 "min_weight_fraction_leaf",
                 "max_features",
+                "number_of_sections",  # somaya
                 "max_leaf_nodes",
                 "min_impurity_decrease",
                 "random_state",
@@ -2748,6 +2750,7 @@ class somayaTreesClassifier(ForestClassifier):
         self.min_samples_leaf = min_samples_leaf
         self.min_weight_fraction_leaf = min_weight_fraction_leaf
         self.max_features = max_features
+        self.number_of_sections = number_of_sections  # somaya
         self.max_leaf_nodes = max_leaf_nodes
         self.min_impurity_decrease = min_impurity_decrease
         self.ccp_alpha = ccp_alpha
@@ -3025,7 +3028,7 @@ class somayaTreesRegressor(ForestRegressor):
         min_samples_split=2,
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
-        max_features="auto",
+        max_features=1.0,
         number_of_sections=1,  # somaya
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
