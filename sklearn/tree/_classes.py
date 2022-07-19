@@ -411,7 +411,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             splitter = SPLITTERS[self.splitter](
                 criterion,
                 self.max_features_,
-                self.number_of_sections,
+                self.number_of_sections,  # somaya
                 min_samples_leaf,
                 min_weight_leaf,
                 random_state,
@@ -1862,8 +1862,20 @@ class ExtraTreeRegressor(DecisionTreeRegressor):
         )
 
 
-class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
-    """A decision tree classifier.
+# **************************************************************************************
+
+
+class somayaTreeClassifier(DecisionTreeClassifier):
+    """An extremely randomized tree classifier.
+
+    Extra-trees differ from classic decision trees in the way they are built.
+    When looking for the best split to separate the samples of a node into two
+    groups, random splits are drawn for each of the `max_features` randomly
+    selected features and the best split among those is chosen. When
+    `max_features` is set 1, this amounts to building a totally random
+    decision tree.
+
+    Warning: Extra-trees should only be used within ensemble methods.
 
     Read more in the :ref:`User Guide <tree>`.
 
@@ -1873,7 +1885,7 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
         The function to measure the quality of a split. Supported criteria are
         "gini" for the Gini impurity and "entropy" for the information gain.
 
-    splitter : {"best", "random"}, default="best"
+    splitter : {"random", "best"}, default="random"
         The strategy used to choose the split at each node. Supported
         strategies are "best" to choose the best split and "random" to choose
         the best random split.
@@ -1914,7 +1926,7 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
         the input samples) required to be at a leaf node. Samples have
         equal weight when sample_weight is not provided.
 
-    max_features : int, float or {"auto", "sqrt", "log2"}, default=None
+    max_features : int, float, {"auto", "sqrt", "log2"} or None, default="auto"
         The number of features to consider when looking for the best split:
 
             - If int, then consider `max_features` features at each split.
@@ -1931,15 +1943,7 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
         effectively inspect more than ``max_features`` features.
 
     random_state : int, RandomState instance or None, default=None
-        Controls the randomness of the estimator. The features are always
-        randomly permuted at each split, even if ``splitter`` is set to
-        ``"best"``. When ``max_features < n_features``, the algorithm will
-        select ``max_features`` at random at each split before finding the best
-        split among them. But the best found split may vary across different
-        runs, even if ``max_features=n_features``. That is the case, if the
-        improvement of the criterion is identical for several splits and one
-        split has to be selected at random. To obtain a deterministic behaviour
-        during fitting, ``random_state`` has to be fixed to an integer.
+        Used to pick randomly the `max_features` used at each split.
         See :term:`Glossary <random_state>` for details.
 
     max_leaf_nodes : int, default=None
@@ -2000,17 +2004,6 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
         The classes labels (single output problem),
         or a list of arrays of class labels (multi-output problem).
 
-    feature_importances_ : ndarray of shape (n_features,)
-        The impurity-based feature importances.
-        The higher, the more important the feature.
-        The importance of a feature is computed as the (normalized)
-        total reduction of the criterion brought by that feature.  It is also
-        known as the Gini importance [4]_.
-
-        Warning: impurity-based feature importances can be misleading for
-        high cardinality features (many unique values). See
-        :func:`sklearn.inspection.permutation_importance` as an alternative.
-
     max_features_ : int
         The inferred value of max_features.
 
@@ -2018,6 +2011,17 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
         The number of classes (for single output problems),
         or a list containing the number of classes for each
         output (for multi-output problems).
+
+    feature_importances_ : ndarray of shape (n_features,)
+        The impurity-based feature importances.
+        The higher, the more important the feature.
+        The importance of a feature is computed as the (normalized)
+        total reduction of the criterion brought by that feature.  It is also
+        known as the Gini importance.
+
+        Warning: impurity-based feature importances can be misleading for
+        high cardinality features (many unique values). See
+        :func:`sklearn.inspection.permutation_importance` as an alternative.
 
     n_features_ : int
         The number of features when ``fit`` is performed.
@@ -2048,7 +2052,13 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
 
     See Also
     --------
-    DecisionTreeRegressor : A decision tree regressor.
+    ExtraTreeRegressor : An extremely randomized tree regressor.
+    sklearn.ensemble.ExtraTreesClassifier : An extra-trees classifier.
+    sklearn.ensemble.ExtraTreesRegressor : An extra-trees regressor.
+    sklearn.ensemble.RandomForestClassifier : A random forest classifier.
+    sklearn.ensemble.RandomForestRegressor : A random forest regressor.
+    sklearn.ensemble.RandomTreesEmbedding : An ensemble of
+        totally random trees.
 
     Notes
     -----
@@ -2058,37 +2068,26 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
     reduce memory consumption, the complexity and size of the trees should be
     controlled by setting those parameter values.
 
-    The :meth:`predict` method operates using the :func:`numpy.argmax`
-    function on the outputs of :meth:`predict_proba`. This means that in
-    case the highest predicted probabilities are tied, the classifier will
-    predict the tied class with the lowest index in :term:`classes_`.
-
     References
     ----------
 
-    .. [1] https://en.wikipedia.org/wiki/Decision_tree_learning
-
-    .. [2] L. Breiman, J. Friedman, R. Olshen, and C. Stone, "Classification
-           and Regression Trees", Wadsworth, Belmont, CA, 1984.
-
-    .. [3] T. Hastie, R. Tibshirani and J. Friedman. "Elements of Statistical
-           Learning", Springer, 2009.
-
-    .. [4] L. Breiman, and A. Cutler, "Random Forests",
-           https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm
+    .. [1] P. Geurts, D. Ernst., and L. Wehenkel, "Extremely randomized trees",
+           Machine Learning, 63(1), 3-42, 2006.
 
     Examples
     --------
     >>> from sklearn.datasets import load_iris
-    >>> from sklearn.model_selection import cross_val_score
-    >>> from sklearn.tree import DecisionTreeClassifier
-    >>> clf = DecisionTreeClassifier(random_state=0)
-    >>> iris = load_iris()
-    >>> cross_val_score(clf, iris.data, iris.target, cv=10)
-    ...                             # doctest: +SKIP
-    ...
-    array([ 1.     ,  0.93...,  0.86...,  0.93...,  0.93...,
-            0.93...,  0.93...,  1.     ,  0.93...,  1.      ])
+    >>> from sklearn.model_selection import train_test_split
+    >>> from sklearn.ensemble import BaggingClassifier
+    >>> from sklearn.tree import ExtraTreeClassifier
+    >>> X, y = load_iris(return_X_y=True)
+    >>> X_train, X_test, y_train, y_test = train_test_split(
+    ...    X, y, random_state=0)
+    >>> extra_tree = ExtraTreeClassifier(random_state=0)
+    >>> cls = BaggingClassifier(extra_tree, random_state=0).fit(
+    ...    X_train, y_train)
+    >>> cls.score(X_test, y_test)
+    0.8947...
     """
 
     def __init__(
@@ -2100,7 +2099,7 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
         min_samples_split=2,
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
-        max_features=None,
+        max_features="auto",
         number_of_sections=1,  # somaya
         random_state=None,
         max_leaf_nodes=None,
@@ -2119,154 +2118,33 @@ class somayaTreeClassifier(ClassifierMixin, BaseDecisionTree):
             number_of_sections=number_of_sections,  # somaya
             max_leaf_nodes=max_leaf_nodes,
             class_weight=class_weight,
-            random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
+            random_state=random_state,
             ccp_alpha=ccp_alpha,
         )
 
-    def fit(self, X, y, sample_weight=None, check_input=True):
-        """Build a decision tree classifier from the training set (X, y).
 
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The training input samples. Internally, it will be converted to
-            ``dtype=np.float32`` and if a sparse matrix is provided
-            to a sparse ``csc_matrix``.
+class somayaTreeRegressor(DecisionTreeRegressor):
+    """An extremely randomized tree regressor.
 
-        y : array-like of shape (n_samples,) or (n_samples, n_outputs)
-            The target values (class labels) as integers or strings.
+    Extra-trees differ from classic decision trees in the way they are built.
+    When looking for the best split to separate the samples of a node into two
+    groups, random splits are drawn for each of the `max_features` randomly
+    selected features and the best split among those is chosen. When
+    `max_features` is set 1, this amounts to building a totally random
+    decision tree.
 
-        sample_weight : array-like of shape (n_samples,), default=None
-            Sample weights. If None, then samples are equally weighted. Splits
-            that would create child nodes with net zero or negative weight are
-            ignored while searching for a split in each node. Splits are also
-            ignored if they would result in any single class carrying a
-            negative weight in either child node.
-
-        check_input : bool, default=True
-            Allow to bypass several input checking.
-            Don't use this parameter unless you know what you do.
-
-        Returns
-        -------
-        self : DecisionTreeClassifier
-            Fitted estimator.
-        """
-
-        super().fit(
-            X,
-            y,
-            sample_weight=sample_weight,
-            check_input=check_input,
-        )
-        return self
-
-    def predict_proba(self, X, check_input=True):
-        """Predict class probabilities of the input samples X.
-
-        The predicted class probability is the fraction of samples of the same
-        class in a leaf.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Internally, it will be converted to
-            ``dtype=np.float32`` and if a sparse matrix is provided
-            to a sparse ``csr_matrix``.
-
-        check_input : bool, default=True
-            Allow to bypass several input checking.
-            Don't use this parameter unless you know what you do.
-
-        Returns
-        -------
-        proba : ndarray of shape (n_samples, n_classes) or list of n_outputs \
-            such arrays if n_outputs > 1
-            The class probabilities of the input samples. The order of the
-            classes corresponds to that in the attribute :term:`classes_`.
-        """
-        check_is_fitted(self)
-        X = self._validate_X_predict(X, check_input)
-        proba = self.tree_.predict(X)
-
-        if self.n_outputs_ == 1:
-            proba = proba[:, : self.n_classes_]
-            normalizer = proba.sum(axis=1)[:, np.newaxis]
-            normalizer[normalizer == 0.0] = 1.0
-            proba /= normalizer
-
-            return proba
-
-        else:
-            all_proba = []
-
-            for k in range(self.n_outputs_):
-                proba_k = proba[:, k, : self.n_classes_[k]]
-                normalizer = proba_k.sum(axis=1)[:, np.newaxis]
-                normalizer[normalizer == 0.0] = 1.0
-                proba_k /= normalizer
-                all_proba.append(proba_k)
-
-            return all_proba
-
-    def predict_log_proba(self, X):
-        """Predict class log-probabilities of the input samples X.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Internally, it will be converted to
-            ``dtype=np.float32`` and if a sparse matrix is provided
-            to a sparse ``csr_matrix``.
-
-        Returns
-        -------
-        proba : ndarray of shape (n_samples, n_classes) or list of n_outputs \
-            such arrays if n_outputs > 1
-            The class log-probabilities of the input samples. The order of the
-            classes corresponds to that in the attribute :term:`classes_`.
-        """
-        proba = self.predict_proba(X)
-
-        if self.n_outputs_ == 1:
-            return np.log(proba)
-
-        else:
-            for k in range(self.n_outputs_):
-                proba[k] = np.log(proba[k])
-
-            return proba
-
-    @deprecated(  # type: ignore
-        "The attribute `n_features_` is deprecated in 1.0 and will be removed "
-        "in 1.2. Use `n_features_in_` instead."
-    )
-    @property
-    def n_features_(self):
-        return self.n_features_in_
-
-    def _more_tags(self):
-        return {"multilabel": True}
-
-
-class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
-    """A decision tree regressor.
+    Warning: Extra-trees should only be used within ensemble methods.
 
     Read more in the :ref:`User Guide <tree>`.
 
     Parameters
     ----------
-    criterion : {"squared_error", "friedman_mse", "absolute_error", \
-            "poisson"}, default="squared_error"
+    criterion : {"squared_error", "friedman_mse"}, default="squared_error"
         The function to measure the quality of a split. Supported criteria
         are "squared_error" for the mean squared error, which is equal to
-        variance reduction as feature selection criterion and minimizes the L2
-        loss using the mean of each terminal node, "friedman_mse", which uses
-        mean squared error with Friedman's improvement score for potential
-        splits, "absolute_error" for the mean absolute error, which minimizes
-        the L1 loss using the median of each terminal node, and "poisson" which
-        uses reduction in Poisson deviance to find splits.
+        variance reduction as feature selection criterion and "mae" for the
+        mean absolute error.
 
         .. versionadded:: 0.18
            Mean Absolute Error (MAE) criterion.
@@ -2282,7 +2160,7 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
             Criterion "mae" was deprecated in v1.0 and will be removed in
             version 1.2. Use `criterion="absolute_error"` which is equivalent.
 
-    splitter : {"best", "random"}, default="best"
+    splitter : {"random", "best"}, default="random"
         The strategy used to choose the split at each node. Supported
         strategies are "best" to choose the best split and "random" to choose
         the best random split.
@@ -2323,7 +2201,7 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
         the input samples) required to be at a leaf node. Samples have
         equal weight when sample_weight is not provided.
 
-    max_features : int, float or {"auto", "sqrt", "log2"}, default=None
+    max_features : int, float, {"auto", "sqrt", "log2"} or None, default="auto"
         The number of features to consider when looking for the best split:
 
         - If int, then consider `max_features` features at each split.
@@ -2340,21 +2218,8 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
         effectively inspect more than ``max_features`` features.
 
     random_state : int, RandomState instance or None, default=None
-        Controls the randomness of the estimator. The features are always
-        randomly permuted at each split, even if ``splitter`` is set to
-        ``"best"``. When ``max_features < n_features``, the algorithm will
-        select ``max_features`` at random at each split before finding the best
-        split among them. But the best found split may vary across different
-        runs, even if ``max_features=n_features``. That is the case, if the
-        improvement of the criterion is identical for several splits and one
-        split has to be selected at random. To obtain a deterministic behaviour
-        during fitting, ``random_state`` has to be fixed to an integer.
+        Used to pick randomly the `max_features` used at each split.
         See :term:`Glossary <random_state>` for details.
-
-    max_leaf_nodes : int, default=None
-        Grow a tree with ``max_leaf_nodes`` in best-first fashion.
-        Best nodes are defined as relative reduction in impurity.
-        If None then unlimited number of leaf nodes.
 
     min_impurity_decrease : float, default=0.0
         A node will be split if this split induces a decrease of the impurity
@@ -2374,6 +2239,11 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
 
         .. versionadded:: 0.19
 
+    max_leaf_nodes : int, default=None
+        Grow a tree with ``max_leaf_nodes`` in best-first fashion.
+        Best nodes are defined as relative reduction in impurity.
+        If None then unlimited number of leaf nodes.
+
     ccp_alpha : non-negative float, default=0.0
         Complexity parameter used for Minimal Cost-Complexity Pruning. The
         subtree with the largest cost complexity that is smaller than
@@ -2384,17 +2254,6 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
 
     Attributes
     ----------
-    feature_importances_ : ndarray of shape (n_features,)
-        The feature importances.
-        The higher, the more important the feature.
-        The importance of a feature is computed as the
-        (normalized) total reduction of the criterion brought
-        by that feature. It is also known as the Gini importance [4]_.
-
-        Warning: impurity-based feature importances can be misleading for
-        high cardinality features (many unique values). See
-        :func:`sklearn.inspection.permutation_importance` as an alternative.
-
     max_features_ : int
         The inferred value of max_features.
 
@@ -2416,6 +2275,14 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
 
         .. versionadded:: 1.0
 
+    feature_importances_ : ndarray of shape (n_features,)
+        Return impurity-based feature importances (the higher, the more
+        important the feature).
+
+        Warning: impurity-based feature importances can be misleading for
+        high cardinality features (many unique values). See
+        :func:`sklearn.inspection.permutation_importance` as an alternative.
+
     n_outputs_ : int
         The number of outputs when ``fit`` is performed.
 
@@ -2427,7 +2294,9 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
 
     See Also
     --------
-    DecisionTreeClassifier : A decision tree classifier.
+    ExtraTreeClassifier : An extremely randomized tree classifier.
+    sklearn.ensemble.ExtraTreesClassifier : An extra-trees classifier.
+    sklearn.ensemble.ExtraTreesRegressor : An extra-trees regressor.
 
     Notes
     -----
@@ -2440,29 +2309,23 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
     References
     ----------
 
-    .. [1] https://en.wikipedia.org/wiki/Decision_tree_learning
-
-    .. [2] L. Breiman, J. Friedman, R. Olshen, and C. Stone, "Classification
-           and Regression Trees", Wadsworth, Belmont, CA, 1984.
-
-    .. [3] T. Hastie, R. Tibshirani and J. Friedman. "Elements of Statistical
-           Learning", Springer, 2009.
-
-    .. [4] L. Breiman, and A. Cutler, "Random Forests",
-           https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm
+    .. [1] P. Geurts, D. Ernst., and L. Wehenkel, "Extremely randomized trees",
+           Machine Learning, 63(1), 3-42, 2006.
 
     Examples
     --------
     >>> from sklearn.datasets import load_diabetes
-    >>> from sklearn.model_selection import cross_val_score
-    >>> from sklearn.tree import DecisionTreeRegressor
+    >>> from sklearn.model_selection import train_test_split
+    >>> from sklearn.ensemble import BaggingRegressor
+    >>> from sklearn.tree import ExtraTreeRegressor
     >>> X, y = load_diabetes(return_X_y=True)
-    >>> regressor = DecisionTreeRegressor(random_state=0)
-    >>> cross_val_score(regressor, X, y, cv=10)
-    ...                    # doctest: +SKIP
-    ...
-    array([-0.39..., -0.46...,  0.02...,  0.06..., -0.50...,
-           0.16...,  0.11..., -0.73..., -0.30..., -0.00...])
+    >>> X_train, X_test, y_train, y_test = train_test_split(
+    ...     X, y, random_state=0)
+    >>> extra_tree = ExtraTreeRegressor(random_state=0)
+    >>> reg = BaggingRegressor(extra_tree, random_state=0).fit(
+    ...     X_train, y_train)
+    >>> reg.score(X_test, y_test)
+    0.33...
     """
 
     def __init__(
@@ -2474,11 +2337,11 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
         min_samples_split=2,
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
-        max_features=None,
+        max_features="auto",
         number_of_sections=1,  # somaya
         random_state=None,
-        max_leaf_nodes=None,
         min_impurity_decrease=0.0,
+        max_leaf_nodes=None,
         ccp_alpha=0.0,
     ):
         super().__init__(
@@ -2491,79 +2354,7 @@ class somayaTreeRegressor(RegressorMixin, BaseDecisionTree):
             max_features=max_features,
             number_of_sections=number_of_sections,  # somaya
             max_leaf_nodes=max_leaf_nodes,
-            random_state=random_state,
             min_impurity_decrease=min_impurity_decrease,
+            random_state=random_state,
             ccp_alpha=ccp_alpha,
         )
-
-    def fit(self, X, y, sample_weight=None, check_input=True):
-        """Build a decision tree regressor from the training set (X, y).
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The training input samples. Internally, it will be converted to
-            ``dtype=np.float32`` and if a sparse matrix is provided
-            to a sparse ``csc_matrix``.
-
-        y : array-like of shape (n_samples,) or (n_samples, n_outputs)
-            The target values (real numbers). Use ``dtype=np.float64`` and
-            ``order='C'`` for maximum efficiency.
-
-        sample_weight : array-like of shape (n_samples,), default=None
-            Sample weights. If None, then samples are equally weighted. Splits
-            that would create child nodes with net zero or negative weight are
-            ignored while searching for a split in each node.
-
-        check_input : bool, default=True
-            Allow to bypass several input checking.
-            Don't use this parameter unless you know what you do.
-
-        Returns
-        -------
-        self : DecisionTreeRegressor
-            Fitted estimator.
-        """
-
-        super().fit(
-            X,
-            y,
-            sample_weight=sample_weight,
-            check_input=check_input,
-        )
-        return self
-
-    def _compute_partial_dependence_recursion(self, grid, target_features):
-        """Fast partial dependence computation.
-
-        Parameters
-        ----------
-        grid : ndarray of shape (n_samples, n_target_features)
-            The grid points on which the partial dependence should be
-            evaluated.
-        target_features : ndarray of shape (n_target_features)
-            The set of target features for which the partial dependence
-            should be evaluated.
-
-        Returns
-        -------
-        averaged_predictions : ndarray of shape (n_samples,)
-            The value of the partial dependence function on each grid point.
-        """
-        grid = np.asarray(grid, dtype=DTYPE, order="C")
-        averaged_predictions = np.zeros(
-            shape=grid.shape[0], dtype=np.float64, order="C"
-        )
-
-        self.tree_.compute_partial_dependence(
-            grid, target_features, averaged_predictions
-        )
-        return averaged_predictions
-
-    @deprecated(  # type: ignore
-        "The attribute `n_features_` is deprecated in 1.0 and will be removed "
-        "in 1.2. Use `n_features_in_` instead."
-    )
-    @property
-    def n_features_(self):
-        return self.n_features_in_

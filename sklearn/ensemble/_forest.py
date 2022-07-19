@@ -2419,16 +2419,15 @@ class ExtraTreesRegressor(ForestRegressor):
         self.ccp_alpha = ccp_alpha
 
 
+# ************************************************************************************
 class somayaTreesClassifier(ForestClassifier):
     """
-    A random forest classifier.
+    An extra-trees classifier.
 
-    A random forest is a meta estimator that fits a number of decision tree
-    classifiers on various sub-samples of the dataset and uses averaging to
-    improve the predictive accuracy and control over-fitting.
-    The sub-sample size is controlled with the `max_samples` parameter if
-    `bootstrap=True` (default), otherwise the whole dataset is used to build
-    each tree.
+    This class implements a meta estimator that fits a number of
+    randomized decision trees (a.k.a. extra-trees) on various sub-samples
+    of the dataset and uses averaging to improve the predictive accuracy
+    and control over-fitting.
 
     Read more in the :ref:`User Guide <forest>`.
 
@@ -2444,7 +2443,6 @@ class somayaTreesClassifier(ForestClassifier):
     criterion : {"gini", "entropy"}, default="gini"
         The function to measure the quality of a split. Supported criteria are
         "gini" for the Gini impurity and "entropy" for the information gain.
-        Note: this parameter is tree-specific.
 
     max_depth : int, default=None
         The maximum depth of the tree. If None, then nodes are expanded until
@@ -2528,7 +2526,7 @@ class somayaTreesClassifier(ForestClassifier):
 
         .. versionadded:: 0.19
 
-    bootstrap : bool, default=True
+    bootstrap : bool, default=False
         Whether bootstrap samples are used when building trees. If False, the
         whole dataset is used to build each tree.
 
@@ -2544,10 +2542,14 @@ class somayaTreesClassifier(ForestClassifier):
         <n_jobs>` for more details.
 
     random_state : int, RandomState instance or None, default=None
-        Controls both the randomness of the bootstrapping of the samples used
-        when building trees (if ``bootstrap=True``) and the sampling of the
-        features to consider when looking for the best split at each node
-        (if ``max_features < n_features``).
+        Controls 3 sources of randomness:
+
+        - the bootstrapping of the samples used when building trees
+          (if ``bootstrap=True``)
+        - the sampling of the features to consider when looking for the best
+          split at each node (if ``max_features < n_features``)
+        - the draw of the splits for each of the `max_features`
+
         See :term:`Glossary <random_state>` for details.
 
     verbose : int, default=0
@@ -2605,7 +2607,7 @@ class somayaTreesClassifier(ForestClassifier):
 
     Attributes
     ----------
-    base_estimator_ : DecisionTreeClassifier
+    base_estimator_ : ExtraTreesClassifier
         The child estimator template used to create the collection of fitted
         sub-estimators.
 
@@ -2619,6 +2621,17 @@ class somayaTreesClassifier(ForestClassifier):
     n_classes_ : int or list
         The number of classes (single output problem), or a list containing the
         number of classes for each output (multi-output problem).
+
+    feature_importances_ : ndarray of shape (n_features,)
+        The impurity-based feature importances.
+        The higher, the more important the feature.
+        The importance of a feature is computed as the (normalized)
+        total reduction of the criterion brought by that feature.  It is also
+        known as the Gini importance.
+
+        Warning: impurity-based feature importances can be misleading for
+        high cardinality features (many unique values). See
+        :func:`sklearn.inspection.permutation_importance` as an alternative.
 
     n_features_ : int
         The number of features when ``fit`` is performed.
@@ -2641,17 +2654,6 @@ class somayaTreesClassifier(ForestClassifier):
     n_outputs_ : int
         The number of outputs when ``fit`` is performed.
 
-    feature_importances_ : ndarray of shape (n_features,)
-        The impurity-based feature importances.
-        The higher, the more important the feature.
-        The importance of a feature is computed as the (normalized)
-        total reduction of the criterion brought by that feature.  It is also
-        known as the Gini importance.
-
-        Warning: impurity-based feature importances can be misleading for
-        high cardinality features (many unique values). See
-        :func:`sklearn.inspection.permutation_importance` as an alternative.
-
     oob_score_ : float
         Score of the training dataset obtained using an out-of-bag estimate.
         This attribute exists only when ``oob_score`` is True.
@@ -2666,9 +2668,9 @@ class somayaTreesClassifier(ForestClassifier):
 
     See Also
     --------
-    sklearn.tree.DecisionTreeClassifier : A decision tree classifier.
-    sklearn.ensemble.ExtraTreesClassifier : Ensemble of extremely randomized
-        tree classifiers.
+    ExtraTreesRegressor : An extra-trees regressor with random splits.
+    RandomForestClassifier : A random forest classifier with optimal splits.
+    RandomForestRegressor : Ensemble regressor using trees with optimal splits.
 
     Notes
     -----
@@ -2678,29 +2680,21 @@ class somayaTreesClassifier(ForestClassifier):
     reduce memory consumption, the complexity and size of the trees should be
     controlled by setting those parameter values.
 
-    The features are always randomly permuted at each split. Therefore,
-    the best found split may vary, even with the same training data,
-    ``max_features=n_features`` and ``bootstrap=False``, if the improvement
-    of the criterion is identical for several splits enumerated during the
-    search of the best split. To obtain a deterministic behaviour during
-    fitting, ``random_state`` has to be fixed.
-
     References
     ----------
-    .. [1] L. Breiman, "Random Forests", Machine Learning, 45(1), 5-32, 2001.
+    .. [1] P. Geurts, D. Ernst., and L. Wehenkel, "Extremely randomized
+           trees", Machine Learning, 63(1), 3-42, 2006.
 
     Examples
     --------
-    >>> from sklearn.ensemble import RandomForestClassifier
+    >>> from sklearn.ensemble import ExtraTreesClassifier
     >>> from sklearn.datasets import make_classification
-    >>> X, y = make_classification(n_samples=1000, n_features=4,
-    ...                            n_informative=2, n_redundant=0,
-    ...                            random_state=0, shuffle=False)
-    >>> clf = RandomForestClassifier(max_depth=2, random_state=0)
+    >>> X, y = make_classification(n_features=4, random_state=0)
+    >>> clf = ExtraTreesClassifier(n_estimators=100, random_state=0)
     >>> clf.fit(X, y)
-    RandomForestClassifier(...)
-    >>> print(clf.predict([[0, 0, 0, 0]]))
-    [1]
+    ExtraTreesClassifier(random_state=0)
+    >>> clf.predict([[0, 0, 0, 0]])
+    array([1])
     """
 
     def __init__(
@@ -2713,10 +2707,10 @@ class somayaTreesClassifier(ForestClassifier):
         min_samples_leaf=1,
         min_weight_fraction_leaf=0.0,
         max_features="sqrt",
-        number_of_sections=1,  # somaya
+        number_of_sections=1,  # Somaya
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
-        bootstrap=True,
+        bootstrap=False,
         oob_score=False,
         n_jobs=None,
         random_state=None,
@@ -2766,14 +2760,12 @@ class somayaTreesClassifier(ForestClassifier):
 
 class somayaTreesRegressor(ForestRegressor):
     """
-    A random forest regressor.
+    An extra-trees regressor.
 
-    A random forest is a meta estimator that fits a number of classifying
-    decision trees on various sub-samples of the dataset and uses averaging
-    to improve the predictive accuracy and control over-fitting.
-    The sub-sample size is controlled with the `max_samples` parameter if
-    `bootstrap=True` (default), otherwise the whole dataset is used to build
-    each tree.
+    This class implements a meta estimator that fits a number of
+    randomized decision trees (a.k.a. extra-trees) on various sub-samples
+    of the dataset and uses averaging to improve the predictive accuracy
+    and control over-fitting.
 
     Read more in the :ref:`User Guide <forest>`.
 
@@ -2786,21 +2778,14 @@ class somayaTreesRegressor(ForestRegressor):
            The default value of ``n_estimators`` changed from 10 to 100
            in 0.22.
 
-    criterion : {"squared_error", "absolute_error", "poisson"}, \
-            default="squared_error"
+    criterion : {"squared_error", "absolute_error"}, default="squared_error"
         The function to measure the quality of a split. Supported criteria
         are "squared_error" for the mean squared error, which is equal to
-        variance reduction as feature selection criterion, "absolute_error"
-        for the mean absolute error, and "poisson" which uses reduction in
-        Poisson deviance to find splits.
-        Training using "absolute_error" is significantly slower
-        than when using "squared_error".
+        variance reduction as feature selection criterion, and "absolute_error"
+        for the mean absolute error.
 
         .. versionadded:: 0.18
            Mean Absolute Error (MAE) criterion.
-
-        .. versionadded:: 1.0
-           Poisson criterion.
 
         .. deprecated:: 1.0
             Criterion "mse" was deprecated in v1.0 and will be removed in
@@ -2896,7 +2881,7 @@ class somayaTreesRegressor(ForestRegressor):
 
         .. versionadded:: 0.19
 
-    bootstrap : bool, default=True
+    bootstrap : bool, default=False
         Whether bootstrap samples are used when building trees. If False, the
         whole dataset is used to build each tree.
 
@@ -2912,10 +2897,14 @@ class somayaTreesRegressor(ForestRegressor):
         <n_jobs>` for more details.
 
     random_state : int, RandomState instance or None, default=None
-        Controls both the randomness of the bootstrapping of the samples used
-        when building trees (if ``bootstrap=True``) and the sampling of the
-        features to consider when looking for the best split at each node
-        (if ``max_features < n_features``).
+        Controls 3 sources of randomness:
+
+        - the bootstrapping of the samples used when building trees
+          (if ``bootstrap=True``)
+        - the sampling of the features to consider when looking for the best
+          split at each node (if ``max_features < n_features``)
+        - the draw of the splits for each of the `max_features`
+
         See :term:`Glossary <random_state>` for details.
 
     verbose : int, default=0
@@ -2947,7 +2936,7 @@ class somayaTreesRegressor(ForestRegressor):
 
     Attributes
     ----------
-    base_estimator_ : DecisionTreeRegressor
+    base_estimator_ : ExtraTreeRegressor
         The child estimator template used to create the collection of fitted
         sub-estimators.
 
@@ -2966,7 +2955,7 @@ class somayaTreesRegressor(ForestRegressor):
         :func:`sklearn.inspection.permutation_importance` as an alternative.
 
     n_features_ : int
-        The number of features when ``fit`` is performed.
+        The number of features.
 
         .. deprecated:: 1.0
             Attribute `n_features_` was deprecated in version 1.0 and will be
@@ -2984,7 +2973,7 @@ class somayaTreesRegressor(ForestRegressor):
         .. versionadded:: 1.0
 
     n_outputs_ : int
-        The number of outputs when ``fit`` is performed.
+        The number of outputs.
 
     oob_score_ : float
         Score of the training dataset obtained using an out-of-bag estimate.
@@ -2996,9 +2985,9 @@ class somayaTreesRegressor(ForestRegressor):
 
     See Also
     --------
-    sklearn.tree.DecisionTreeRegressor : A decision tree regressor.
-    sklearn.ensemble.ExtraTreesRegressor : Ensemble of extremely randomized
-        tree regressors.
+    ExtraTreesClassifier : An extra-trees classifier with random splits.
+    RandomForestClassifier : A random forest classifier with optimal splits.
+    RandomForestRegressor : Ensemble regressor using trees with optimal splits.
 
     Notes
     -----
@@ -3008,35 +2997,23 @@ class somayaTreesRegressor(ForestRegressor):
     reduce memory consumption, the complexity and size of the trees should be
     controlled by setting those parameter values.
 
-    The features are always randomly permuted at each split. Therefore,
-    the best found split may vary, even with the same training data,
-    ``max_features=n_features`` and ``bootstrap=False``, if the improvement
-    of the criterion is identical for several splits enumerated during the
-    search of the best split. To obtain a deterministic behaviour during
-    fitting, ``random_state`` has to be fixed.
-
-    The default value ``max_features="auto"`` uses ``n_features``
-    rather than ``n_features / 3``. The latter was originally suggested in
-    [1], whereas the former was more recently justified empirically in [2].
-
     References
     ----------
-    .. [1] L. Breiman, "Random Forests", Machine Learning, 45(1), 5-32, 2001.
-
-    .. [2] P. Geurts, D. Ernst., and L. Wehenkel, "Extremely randomized
-           trees", Machine Learning, 63(1), 3-42, 2006.
+    .. [1] P. Geurts, D. Ernst., and L. Wehenkel, "Extremely randomized trees",
+           Machine Learning, 63(1), 3-42, 2006.
 
     Examples
     --------
-    >>> from sklearn.ensemble import RandomForestRegressor
-    >>> from sklearn.datasets import make_regression
-    >>> X, y = make_regression(n_features=4, n_informative=2,
-    ...                        random_state=0, shuffle=False)
-    >>> regr = RandomForestRegressor(max_depth=2, random_state=0)
-    >>> regr.fit(X, y)
-    RandomForestRegressor(...)
-    >>> print(regr.predict([[0, 0, 0, 0]]))
-    [-8.32987858]
+    >>> from sklearn.datasets import load_diabetes
+    >>> from sklearn.model_selection import train_test_split
+    >>> from sklearn.ensemble import ExtraTreesRegressor
+    >>> X, y = load_diabetes(return_X_y=True)
+    >>> X_train, X_test, y_train, y_test = train_test_split(
+    ...     X, y, random_state=0)
+    >>> reg = ExtraTreesRegressor(n_estimators=100, random_state=0).fit(
+    ...    X_train, y_train)
+    >>> reg.score(X_test, y_test)
+    0.2727...
     """
 
     def __init__(
@@ -3052,7 +3029,7 @@ class somayaTreesRegressor(ForestRegressor):
         number_of_sections=1,  # Somaya
         max_leaf_nodes=None,
         min_impurity_decrease=0.0,
-        bootstrap=True,
+        bootstrap=False,
         oob_score=False,
         n_jobs=None,
         random_state=None,
@@ -3096,6 +3073,9 @@ class somayaTreesRegressor(ForestRegressor):
         self.max_leaf_nodes = max_leaf_nodes
         self.min_impurity_decrease = min_impurity_decrease
         self.ccp_alpha = ccp_alpha
+
+
+# ************************************************************************************
 
 
 class RandomTreesEmbedding(BaseForest):

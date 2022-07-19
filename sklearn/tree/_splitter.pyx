@@ -92,7 +92,7 @@ cdef class Splitter:
         self.sample_weight = NULL
 
         self.max_features = max_features
-        self.number_of_sections=number_of_sections                    #somaya
+        self.number_of_sections=number_of_sections                              #somaya
         self.min_samples_leaf = min_samples_leaf
         self.min_weight_leaf = min_weight_leaf
         self.random_state = random_state
@@ -306,6 +306,8 @@ cdef class BestSplitter(BaseDenseSplitter):
         cdef SIZE_t n_total_constants = n_known_constants
         cdef DTYPE_t current_feature_value
         cdef SIZE_t partition_end
+        #cdef SIZE_t somaya_counter= 0                                           #somaya
+        #printf('New node split *****************\n')                     #somaya
 
         _init_split(&best, end)
 
@@ -375,7 +377,12 @@ cdef class BestSplitter(BaseDenseSplitter):
                     # Evaluate all splits
                     self.criterion.reset()
                     p = start
-                    #printf('random forest here***\n')                          #somaya
+
+                    #printf('New feature here ***\n')                            #somaya
+                    #printf('Feature number = %d \n',current.feature)            #somaya
+                    #printf('start = %d for feature %d\n',start,current.feature) #somaya
+                    #printf('end = %d for feature %d\n',end,current.feature)     #somaya
+                    #printf('end - start = %d for feature %d\n',end -start,current.feature)     #somaya
 
                     while p < end:
                         while (p + 1 < end and
@@ -390,10 +397,6 @@ cdef class BestSplitter(BaseDenseSplitter):
 
                         if p < end:
                             current.pos = p
-
-                            #printf('Feature number = %d \n',features[f_j])     #somaya
-                            #printf('start = %d \n',start)                      #somaya
-                            #printf('end = %d \n',end)                          #somaya
 
                             # Reject if min_samples_leaf is not guaranteed
                             if (((current.pos - start) < min_samples_leaf) or
@@ -418,9 +421,10 @@ cdef class BestSplitter(BaseDenseSplitter):
                                     (current.threshold == INFINITY) or
                                     (current.threshold == -INFINITY)):
                                     current.threshold = Xf[p - 1]
-
+                                #printf('feature number %d its current threshold= %f..BEST threshold= %f and best feature is: %d\n',current.feature,current.threshold,best.threshold,best.feature)
                                 best = current  # copy
 
+        #printf('Found the optimal threshold for feature %d ,, it is:  %f \n',best.feature,best.threshold)
         # Reorganize into samples[start:best.pos] + samples[best.pos:end]
         if best.pos < end:
             partition_end = end
@@ -573,10 +577,11 @@ cdef void heapsort(DTYPE_t* Xf, SIZE_t* samples, SIZE_t n) nogil:
 
 
 cdef class SomayaSplitter(BaseDenseSplitter):
-    """Splitter for finding the best split."""                    #somaya 4 lines below  /////////////self.number_of_sections,
+    """Splitter for finding the best split."""                                  #somaya 4 lines below  /////////////self.number_of_sections,
     def __reduce__(self):
         return (SomayaSplitter, (self.criterion,
                                self.max_features,
+                               self.number_of_sections,                         #somaya
                                self.min_samples_leaf,
                                self.min_weight_leaf,
                                self.random_state), self.__getstate__())
@@ -600,7 +605,7 @@ cdef class SomayaSplitter(BaseDenseSplitter):
 
         cdef DTYPE_t* Xf = self.feature_values
         cdef SIZE_t max_features = self.max_features
-        cdef SIZE_t number_of_sections = self.number_of_sections                 #somaya
+        cdef SIZE_t number_of_sections = self.number_of_sections                #somaya
         cdef SIZE_t min_samples_leaf = self.min_samples_leaf
         cdef double min_weight_leaf = self.min_weight_leaf
         cdef UINT32_t* random_state = &self.rand_r_state
@@ -627,13 +632,14 @@ cdef class SomayaSplitter(BaseDenseSplitter):
         cdef SIZE_t n_total_constants = n_known_constants
         cdef DTYPE_t current_feature_value
         cdef SIZE_t partition_end
-        cdef SIZE_t End_of_section     #somaya
         cdef DTYPE_t min_feature_value
         cdef DTYPE_t max_feature_value
+        cdef SIZE_t End_of_section                                              #somaya
         cdef SIZE_t section_size                                                #somaya
         cdef DTYPE_t section_threshold                                          #somaya
         cdef SIZE_t start_of_section                                            #somaya
-
+        cdef SIZE_t somaya_counter= 1                                           #somaya
+        #printf('New node split \n')                                             #somaya
 
         _init_split(&best, end)
 
@@ -681,17 +687,22 @@ cdef class SomayaSplitter(BaseDenseSplitter):
                 # f_j in the interval [n_total_constants, f_i[
                 current.feature = features[f_j]
 
-                # Sort samples along that feature; by
-                # copying the values into an array and
-                # sorting the array in a manner which utilizes the cache more
-                # effectively.
-                for i in range(start, end):
-                    Xf[i] = self.X[samples[i], current.feature]
+                # Find min, max
+                min_feature_value = self.X[samples[start], current.feature]
+                max_feature_value = min_feature_value
+                Xf[start] = min_feature_value
 
-                sort(Xf + start, samples + start, end - start)
+                for p in range(start + 1, end):
+                    current_feature_value = self.X[samples[p], current.feature]
+                    Xf[p] = current_feature_value
 
-                if Xf[end - 1] <= Xf[start] + FEATURE_THRESHOLD:
-                    features[f_j], features[n_total_constants] = features[n_total_constants], features[f_j]
+                    if current_feature_value < min_feature_value:
+                        min_feature_value = current_feature_value
+                    elif current_feature_value > max_feature_value:
+                        max_feature_value = current_feature_value
+
+                if max_feature_value <= min_feature_value + FEATURE_THRESHOLD:
+                    features[f_j], features[n_total_constants] = features[n_total_constants], current.feature
 
                     n_found_constants += 1
                     n_total_constants += 1
@@ -699,49 +710,26 @@ cdef class SomayaSplitter(BaseDenseSplitter):
                 else:
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
-                                    #**********************************************************************Somaya start here >>>>>
-                    start_of_section=start
-                    section_size =(end-start)/number_of_sections
-                    if section_size ==0:
-                      section_size=1
-                    #printf('Feature number = %d \n',features[f_j])
-                    #printf('start = %d for feature %d\n',start,features[f_j])
-                    #printf('end = %d for feature %d\n',end,features[f_j])
-                    #printf('section size = %d for feature %d\n',section_size,features[f_j])
 
-                    # Evaluate all splits
-                    self.criterion.reset()
-
-                    for x in range(number_of_sections):
-
-                        #printf('start_of_section = %d  for feature %d\n',start_of_section,features[f_j])
-
-                        min_feature_value = Xf[start_of_section]
-
-                        End_of_section = start_of_section + section_size
-                        if End_of_section>end:
-                          End_of_section=end
-                        #printf('End_of_section = %d for feature %d\n',End_of_section,features[f_j])
-                        max_feature_value=Xf[End_of_section-1]
-
-                        # Draw a random threshold from a section
-                        section_threshold=rand_uniform(min_feature_value,
+                    if(number_of_sections == 1):
+                        # Draw a random threshold
+                        current.threshold = rand_uniform(min_feature_value,
                                                          max_feature_value,
                                                          random_state)
 
-                        #evaluate section threshold
-                        #current.threshold = section_threshold     #*******************************here is thr error
+                        if current.threshold == max_feature_value:
+                            current.threshold = min_feature_value
 
-                        #if current.threshold == max_feature_value:
-                            #current.threshold = min_feature_value
-
-                        # find index of section threshold
-                        p, partition_end = start_of_section, End_of_section
+                        # Partition
+                        p, partition_end = start, end
                         while p < partition_end:
-                            if Xf[p] <= section_threshold:
+                            if Xf[p] <= current.threshold:
                                 p += 1
                             else:
                                 partition_end -= 1
+
+                                Xf[p], Xf[partition_end] = Xf[partition_end], Xf[p]
+                                samples[p], samples[partition_end] = samples[partition_end], samples[p]
 
                         current.pos = partition_end
 
@@ -750,6 +738,8 @@ cdef class SomayaSplitter(BaseDenseSplitter):
                                 ((end - current.pos) < min_samples_leaf)):
                             continue
 
+                        # Evaluate split
+                        self.criterion.reset()
                         self.criterion.update(current.pos)
 
                         # Reject if min_weight_leaf is not satisfied
@@ -761,26 +751,99 @@ cdef class SomayaSplitter(BaseDenseSplitter):
 
                         if current_proxy_improvement > best_proxy_improvement:
                             best_proxy_improvement = current_proxy_improvement
-                            current.threshold = section_threshold
                             best = current  # copy
 
-                        start_of_section=End_of_section
-                        if End_of_section==end:
-                          break
+
+                    else:
+
+                        # Evaluate all splits
+                        self.criterion.reset()
+
+                        start_of_section = start
+                        End_of_section = start                                                                     #somaya
+                        section_size =(end-start)/number_of_sections                                               #somaya
+                        if (section_size < 3):
+                            section_size = 3
+
+                        while (End_of_section < end):
+                            End_of_section = start_of_section + section_size
+                            if (End_of_section > end):
+                              End_of_section = end
+
+                            #printf('start_of_section= %d -- End of section =  %d -- end= %d\n',start_of_section,End_of_section,end)
+                            #find min and max within a section
+                            min_feature_value = Xf[start_of_section]
+                            max_feature_value = min_feature_value
+
+                            for p in range(start_of_section + 1, End_of_section):
+                                current_feature_value = Xf[p]
+
+                                if current_feature_value < min_feature_value:
+                                    min_feature_value = current_feature_value
+                                elif current_feature_value > max_feature_value:
+                                    max_feature_value = current_feature_value
+
+                            # Draw a random threshold
+                            section_threshold = rand_uniform(min_feature_value,
+                                                             max_feature_value,
+                                                             random_state)
+
+                            if section_threshold== max_feature_value:
+                                section_threshold = min_feature_value
+
+                            # Partition
+                            p, partition_end = start, end
+                            while p < partition_end:
+                                if Xf[p] <= section_threshold:
+                                    p += 1
+                                else:
+                                    partition_end -= 1
+
+                                    Xf[p], Xf[partition_end] = Xf[partition_end], Xf[p]
+                                    samples[p], samples[partition_end] = samples[partition_end], samples[p]
+
+                            current.pos = partition_end
+
+                            # Reject if min_samples_leaf is not guaranteed
+                            if (((current.pos - start) < min_samples_leaf) or
+                                    ((end - current.pos) < min_samples_leaf)):
+                                #printf('continue due to min_sample_leaf \n')
+                                start_of_section = End_of_section
+                                continue
+
+                            # Evaluate split
+                            #self.criterion.reset()
+                            self.criterion.update(current.pos)
+
+                            # Reject if min_weight_leaf is not satisfied
+                            if ((self.criterion.weighted_n_left < min_weight_leaf) or
+                                    (self.criterion.weighted_n_right < min_weight_leaf)):
+                                #printf('continue due to min_weight_leaf \n')
+                                start_of_section = End_of_section
+                                continue
+
+                            current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+
+                            if current_proxy_improvement > best_proxy_improvement:
+                                best_proxy_improvement = current_proxy_improvement
+                                current.threshold = section_threshold
+                                #printf('feature number %d its current threshold= %f..BEST threshold= %f and best feature is: %d\n',current.feature,current.threshold,best.threshold,best.feature)
+                                best = current  # copy
+
+                            start_of_section = End_of_section
 
         # Reorganize into samples[start:best.pos] + samples[best.pos:end]
         if best.pos < end:
-            partition_end = end
-            p = start
+            if current.feature != best.feature:
+                p, partition_end = start, end
 
-            while p < partition_end:
-                if self.X[samples[p], best.feature] <= best.threshold:
-                    p += 1
+                while p < partition_end:
+                    if self.X[samples[p], best.feature] <= best.threshold:
+                        p += 1
+                    else:
+                        partition_end -= 1
 
-                else:
-                    partition_end -= 1
-
-                    samples[p], samples[partition_end] = samples[partition_end], samples[p]
+                        samples[p], samples[partition_end] = samples[partition_end], samples[p]
 
             self.criterion.reset()
             self.criterion.update(best.pos)
@@ -803,6 +866,7 @@ cdef class SomayaSplitter(BaseDenseSplitter):
         split[0] = best
         n_constant_features[0] = n_total_constants
         return 0
+
 
 cdef class RandomSplitter(BaseDenseSplitter):
     """Splitter for finding the best random split."""
@@ -855,6 +919,7 @@ cdef class RandomSplitter(BaseDenseSplitter):
         cdef DTYPE_t min_feature_value
         cdef DTYPE_t max_feature_value
         cdef DTYPE_t current_feature_value
+        #printf('New node split *****************\n')
 
         _init_split(&best, end)
 
